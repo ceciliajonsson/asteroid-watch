@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asteroid Watch Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #1B1F4A;
+    --sky-2: #252A5E;
+    --regolith: #E4DFD2;
+    --dim: #A3A0C2;
+    --flare: #FFB547;
+    --ice: #8FD3E8;
+    --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--sky); color: var(--regolith);
+    font: 400 1rem/1.55 var(--body);
+  }
+  header { padding: 2.5rem clamp(1rem, 5vw, 4rem) 1rem; display: flex; justify-content: space-between; align-items: end; gap: 1rem; flex-wrap: wrap; }
+  h1 { font: 800 clamp(2rem, 5vw, 3.6rem)/1 var(--display); margin: 0; letter-spacing: -0.02em; max-width: 14ch; }
+  .presence { color: var(--dim); font-size: .95rem; }
+  .presence strong { color: var(--regolith); font-weight: 500; }
+
+  /* The memorable element: a 3D scene with Earth and Moon at the centre and every pass around them. */
+  .space-wrap { padding: 1rem clamp(1rem, 5vw, 4rem) 2.5rem; }
+  .space {
+    position: relative; height: clamp(420px, 72vh, 780px); border-radius: 14px; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 45%, #232862 0%, #141735 70%); touch-action: none;
+  }
+  .space canvas { display: block; }
+  .space.hovering canvas { cursor: pointer; }
+  .label3d { color: var(--dim); font-size: .75rem; pointer-events: none; white-space: nowrap; }
+  .label3d.body { color: var(--regolith); font-weight: 500; }
+  .tip {
+    position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; min-width: 13.5rem; max-width: 17rem;
+    background: rgba(20, 23, 53, .94); border: 1px solid var(--sky-2); border-radius: 10px;
+    padding: .65rem .8rem; font-size: .82rem; line-height: 1.4; opacity: 0; transition: opacity .12s;
+  }
+  .tip.on { opacity: 1; }
+  .tip h3 { font: 800 1.05rem/1.15 var(--display); margin: 0 0 .4rem; }
+  .tip dl { display: grid; grid-template-columns: auto 1fr; gap: .15rem .9rem; margin: 0; }
+  .tip dt { color: var(--dim); }
+  .tip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .tag { display: inline-block; font-size: .75rem; padding: .05rem .5rem; border-radius: 999px; margin: 0 .3rem .5rem 0; background: var(--sky-2); color: var(--dim); }
+  .tag.haz { background: rgba(255,181,71,.16); color: var(--flare); }
+  .tag.sentry { background: rgba(255,120,120,.16); color: #FF8A80; }
+  .legend {
+    position: absolute; left: .9rem; bottom: .8rem; z-index: 2; display: flex; flex-wrap: wrap; gap: .35rem 1rem;
+    color: var(--dim); font-size: .78rem; pointer-events: none; max-width: calc(100% - 15rem);
+  }
+  .legend i { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .35rem; vertical-align: -.02rem; }
+  .legend .stroke { display: inline-block; width: 1.3rem; margin-right: .35rem; vertical-align: .2rem; border-top: 1.5px solid var(--dim); }
+  .legend .stroke.dashed { border-top-style: dashed; }
+  .hint { position: absolute; right: .9rem; top: .8rem; z-index: 2; color: var(--dim); font-size: .78rem; pointer-events: none; text-align: right; }
+  .live {
+    position: absolute; right: .9rem; bottom: .8rem; z-index: 2; pointer-events: none; text-align: right;
+    font-size: .8rem; color: var(--dim); font-variant-numeric: tabular-nums;
+  }
+  .live strong { display: block; color: var(--regolith); font: 500 1rem/1.3 var(--body); }
+  .live .dot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: #6FE3A4; margin-right: .35rem; }
+  @media (prefers-reduced-motion: no-preference) { .live .dot { animation: pulse 2s ease-in-out infinite; } }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .space-note { color: var(--dim); font-size: .82rem; margin: .6rem 0 0; max-width: 80ch; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--ice); outline-offset: 3px; }
+  .pass.linked h3 { text-decoration: underline; text-decoration-color: var(--ice); text-underline-offset: .2em; }
+  @media (max-width: 600px) { .hint { display: none; } .live { top: .8rem; bottom: auto; } .legend { max-width: calc(100% - 1.8rem); } }
+
+  main { padding: 0 clamp(1rem, 5vw, 4rem) 4rem; max-width: 60rem; }
+  h2 { font: 500 1.35rem/1.2 var(--display); margin: 0 0 1rem; }
+
+  .pass { padding: 1.25rem 0; border-top: 1px solid var(--sky-2); }
+  .pass.featured h3 { color: var(--flare); }
+  .pass h3 { font: 800 1.5rem/1.1 var(--display); margin: 0 0 .35rem; }
+  .facts { color: var(--dim); margin: 0 0 .75rem; max-width: 70ch; }
+  .facts b { color: var(--regolith); font-weight: 500; }
+  .context { margin: 0 0 .75rem; padding-left: .75rem; border-left: 2px solid var(--ice); max-width: 65ch; }
+  .why { font-size: .9rem; color: var(--dim); margin: 0 0 .75rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  button.react {
+    font: 500 .95rem var(--body); color: var(--regolith); background: var(--sky-2);
+    border: 1px solid transparent; border-radius: 999px; padding: .35rem .8rem; cursor: pointer;
+  }
+  button.react:hover { border-color: var(--dim); }
+  button.react.bump { border-color: var(--flare); }
+  a { color: var(--ice); }
+
+  .empty { color: var(--dim); max-width: 45ch; }
+  @media (prefers-reduced-motion: no-preference) { button.react { transition: border-color .2s; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>What's passing Earth right now</h1>
+  <p class="presence" aria-live="polite"><strong id="viewers">–</strong> watching with you</p>
+</header>
+
+<section class="space-wrap" aria-label="3D view of each asteroid's pass around Earth and the Moon">
+  <div class="space" id="space">
+    <div class="tip" id="tip" role="status" aria-live="polite"></div>
+    <p class="hint">Drag to rotate · scroll or pinch to zoom · right-drag to pan<br>Hover an asteroid for details</p>
+    <div class="legend">
+      <span><i style="background:#FFB547"></i>Potentially hazardous</span>
+      <span><i style="background:#C9C5DA"></i>Other asteroids</span>
+      <span><i style="background:transparent;border:1.5px solid #FF8A80"></i>On Sentry list</span>
+      <span><b class="stroke"></b>Where it's been</span>
+      <span><b class="stroke dashed"></b>Where it's going</span>
+    </div>
+    <p class="live" aria-live="off"><span class="dot"></span>Live · <span id="live-count">–</span> closest asteroids<strong id="clock">–</strong></p>
+  </div>
+  <p class="space-note">Distances use a log scale so the Moon (1 lunar distance) and passes 100+ lunar distances out fit in one view.
+    Asteroid sizes are exaggerated but in proportion to each other. A solid line is where an asteroid has been, a dashed line where it's heading. Paths show each flyby through its real closest-approach
+    distance; their tilt is illustrative, since the NASA feed doesn't include full orbits.</p>
+</section>
+
+<main>
+  <section>
+    <h2>Closest approaches right now</h2>
+    <div id="passes"><p class="empty">Loading the latest data from NASA…</p></div>
+  </section>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+const EMOJI = ["☄️", "🔭", "😮"];
+const reactions = {};          // { id: { emoji: count } }
+let ws, retry = 0;
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const size = (a) => `${Math.round(a.diameter_min_m)}–${Math.round(a.diameter_max_m)} m`;
+const fmt = (n, d = 0) => Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+// ---------- 3D scene ----------
+const HAZ = 0xFFB547, CALM = 0xC9C5DA, SENTRY = 0xFF8A80, ICE = 0x8FD3E8;
+const EARTH_R = 2, MAX_R = 46;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Log distance scale: Earth's surface → Moon (1 LD) → a few hundred LD, all in one view.
+const rFor = (ld) => 4 + 10 * Math.log10(1 + Math.max(ld, 0));
+// Cube-root keeps a 1 km rock visibly bigger than a 10 m one without swamping the scene.
+const radiusFor = (a) => Math.min(Math.max(0.1 * Math.cbrt((a.diameter_min_m + a.diameter_max_m) / 2), 0.14), 1.1);
+
+// Deterministic pseudo-random numbers per asteroid id, so paths don't jump between reloads.
+function rng(seed) {
+  let h = 2166136261;
+  for (const c of String(seed)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+}
+
+const space = document.getElementById("space");
+const tip = document.getElementById("tip");
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+space.prepend(renderer.domElement);
+const labels = new CSS2DRenderer();
+Object.assign(labels.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: "1" });
+space.appendChild(labels.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+camera.position.set(0, 30, 62);
+const controls = new OrbitControls(camera, renderer.domElement);
+Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, minDistance: 5, maxDistance: 180, autoRotateSpeed: 0.25 });
+let autoSpin = !reduceMotion;   // gentle spin until the viewer takes over
+controls.addEventListener("start", () => { autoSpin = false; });
+
+scene.add(new THREE.AmbientLight(0x8890c0, 0.55));
+const sun = new THREE.DirectionalLight(0xfff3e0, 2.2);
+sun.position.set(60, 20, 30);
+scene.add(sun);
+
+// Stars
+{
+  const g = new THREE.BufferGeometry(), pts = [], r = rng("stars");
+  for (let i = 0; i < 1600; i++) {
+    const v = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize().multiplyScalar(260 + r() * 200);
+    pts.push(v.x, v.y, v.z);
+  }
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xd8d6ee, size: 1.1, sizeAttenuation: false, transparent: true, opacity: 0.7 })));
+}
+
+function label(text, cls, obj, y) {
+  const el = document.createElement("div");
+  el.className = "label3d " + cls; el.textContent = text;
+  const l = new CSS2DObject(el); l.position.set(0, y, 0); obj.add(l);
+}
+
+// Earth: a lit sphere with a thin atmosphere shell
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R, 64, 64),
+  new THREE.MeshStandardMaterial({ color: 0x2f6f9f, emissive: 0x0b2440, roughness: 0.75 }),
+);
+earth.add(new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R * 1.08, 48, 48),
+  new THREE.MeshBasicMaterial({ color: 0x9fe0c5, transparent: true, opacity: 0.12, side: THREE.BackSide }),
+));
+label("Earth", "body", earth, EARTH_R + 0.9);
+scene.add(earth);
+
+// Distance rings on the ecliptic plane
+function ring(ld, text, opacity) {
+  const r = rFor(ld), pts = [];
+  for (let i = 0; i <= 160; i++) { const t = (i / 160) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(t) * r, 0, Math.sin(t) * r)); }
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineDashedMaterial({ color: ICE, dashSize: 0.5, gapSize: 0.5, transparent: true, opacity }));
+  line.computeLineDistances();
+  const anchor = new THREE.Object3D(); anchor.position.set(r * 0.707, 0, r * 0.707); line.add(anchor);
+  label(text, "", anchor, 0.6);
+  scene.add(line);
+}
+ring(1, "Moon's orbit · 1 LD", 0.5);
+ring(10, "10 LD", 0.2);
+ring(100, "100 LD", 0.14);
+
+const moonPivot = new THREE.Object3D();
+const moon = new THREE.Mesh(new THREE.SphereGeometry(0.55, 32, 32), new THREE.MeshStandardMaterial({ color: 0xE4DFD2, roughness: 1 }));
+moon.position.set(rFor(1), 0, 0);
+label("Moon", "body", moon, 1.1);
+moonPivot.add(moon); scene.add(moonPivot);
+
+// Asteroids
+const rocks = [];               // { a, group, mesh, past, future, halo, path }
+const byId = new Map();
+let hovered = null, pinned = null;
+
+const PATH_STEPS = 240;
+
+function flybyPath(a) {
+  // Hyperbolic flyby whose closest point sits at the (log-scaled) real miss distance.
+  // Faster objects bend less. The orientation is seeded from the id.
+  const q = rFor(a.miss_ld);
+  const e = 1.25 + Math.min(a.velocity_kps, 40) / 12;
+  const A = q / (e - 1), B = A * Math.sqrt(e * e - 1);
+  const pts = [];
+  let fMax = 0;
+  while (fMax < 6) { fMax += 0.02; const x = A * (e - Math.cosh(fMax)), y = B * Math.sinh(fMax); if (Math.hypot(x, y) > MAX_R) break; }
+  const N = PATH_STEPS;
+  for (let i = 0; i <= N; i++) {
+    const F = -fMax + (2 * fMax * i) / N;
+    pts.push(new THREE.Vector3(A * (e - Math.cosh(F)), 0, B * Math.sinh(F)));
+  }
+  const r = rng(a.id);
+  const rot = new THREE.Euler((r() - 0.5) * 1.1, r() * Math.PI * 2, (r() - 0.5) * 1.1, "YXZ");
+  const m = new THREE.Matrix4().makeRotationFromEuler(rot);
+  pts.forEach((p) => p.applyMatrix4(m));
+  return { pts, A, B, e, fMax, m };
+}
+
+// The API serves approaches from 12 h ago to ~5 days ahead. Fit ±5 days inside 90% of every
+// drawn path, so each asteroid always has some solid line behind it and dashed line ahead.
+const WINDOW_HOURS = 120;
+function anomalyAt(rock, t) {
+  // At closest approach F = 0; before it F < 0, after it F > 0.
+  const hours = (t - rock.a.approach_epoch) / 3_600_000;
+  const u = Math.max(-1, Math.min(1, hours / WINDOW_HOURS));
+  return u * rock.path.fMax * 0.9;
+}
+
+function posAt(rock, F) {
+  const { A, B, e, m } = rock.path;
+  return new THREE.Vector3(A * (e - Math.cosh(F)), 0, B * Math.sinh(F)).applyMatrix4(m);
+}
+
+// Solid line = where the asteroid has been, dashed = where it's going. Both share the
+// same points; we just move the split to the asteroid's current spot on the path.
+function splitPath(rock, F) {
+  const { fMax } = rock.path;
+  const i = Math.round(((F + fMax) / (2 * fMax)) * PATH_STEPS);
+  rock.past.geometry.setDrawRange(0, i + 1);
+  rock.future.geometry.setDrawRange(i, PATH_STEPS + 1 - i);
+}
+
+function clearRocks() {
+  for (const r of rocks) { scene.remove(r.group); r.group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); }
+  rocks.length = 0; byId.clear(); setHover(null);
+}
+
+function drawSpace(list) {
+  clearRocks();
+  for (const a of list) {
+    const color = a.hazardous ? HAZ : CALM;
+    const path = flybyPath(a);
+    const group = new THREE.Group();
+    const past = new THREE.Line(new THREE.BufferGeometry().setFromPoints(path.pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.16, depthWrite: false }));
+    const future = new THREE.Line(new THREE.BufferGeometry().setFromPoints(path.pts),
+      new THREE.LineDashedMaterial({ color, dashSize: 0.6, gapSize: 0.45, transparent: true, opacity: 0.16, depthWrite: false }));
+    future.computeLineDistances();
+    group.add(past, future);
+
+    const rad = radiusFor(a);
+    const r = rng(a.id + "shape");
+    const geo = new THREE.IcosahedronGeometry(rad, 1);
+    const p = geo.attributes.position;             // lumpy rock, not a perfect sphere
+    for (let i = 0; i < p.count; i++) { const k = 0.8 + r() * 0.35; p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k); }
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, emissive: color, emissiveIntensity: 0.18 }));
+    group.add(mesh);
+
+    let halo = null;
+    if (a.sentry) {
+      halo = new THREE.Mesh(new THREE.RingGeometry(rad * 1.7, rad * 1.7 + 0.08, 48), new THREE.MeshBasicMaterial({ color: SENTRY, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+      group.add(halo);
+    }
+    const rock = { a, group, mesh, past, future, halo, path, spin: 0.2 + r() * 0.6 };
+    rocks.push(rock); byId.set(String(a.id), rock);
+    scene.add(group);
+  }
+}
+
+function tipHtml(a) {
+  return `<h3>${esc(a.name)}</h3>
+    ${a.hazardous ? `<span class="tag haz">Potentially hazardous</span>` : `<span class="tag">Not hazardous</span>`}
+    ${a.sentry ? `<span class="tag sentry">On Sentry list</span>` : ""}
+    <dl>
+      <dt>Closest</dt><dd>${esc(a.approach_at)} UTC</dd>
+      <dt>Miss distance</dt><dd>${fmt(a.miss_ld, 2)} LD · ${fmt(a.miss_km / 1e6, 1)}M km</dd>
+      <dt>Diameter</dt><dd>${fmt(a.diameter_min_m)}–${fmt(a.diameter_max_m)} m</dd>
+      <dt>Velocity</dt><dd>${fmt(a.velocity_kps, 1)} km/s</dd>
+      <dt>Magnitude (H)</dt><dd>${fmt(a.magnitude, 1)}</dd>
+    </dl>`;
+}
+
+function setHover(rock) {
+  if (rock === hovered) return;
+  hovered = rock;
+  tipOffset = null;
+  space.classList.toggle("hovering", !!rock);
+  document.querySelectorAll(".pass.linked").forEach((n) => n.classList.remove("linked"));
+  for (const r of rocks) {
+    const on = r === rock, dim = rock && !on;
+    r.past.material.opacity = r.future.material.opacity = on ? 0.95 : dim ? 0.07 : 0.16;
+    r.mesh.material.opacity = dim ? 0.35 : 1;
+    r.mesh.material.transparent = !!dim;
+    r.mesh.material.emissiveIntensity = on ? 0.6 : 0.18;
+    r.mesh.scale.setScalar(on ? 1.35 : 1);
+  }
+  if (!rock) { tip.classList.remove("on"); return; }
+  tip.innerHTML = tipHtml(rock.a);
+  tip.classList.add("on");
+  document.getElementById("p-" + rock.a.id)?.classList.add("linked");
+}
+
+// Screen-space circle (px) covering a body plus its label, used to keep the info card off Earth and the Moon.
+const _c = new THREE.Vector3();
+function screenCircle(obj, radius, w, h) {
+  obj.getWorldPosition(_c);
+  const dist = camera.position.distanceTo(_c);
+  _c.project(camera);
+  const px = (radius / (dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))) * (h / 2);
+  return { x: (_c.x * 0.5 + 0.5) * w, y: (-_c.y * 0.5 + 0.5) * h, r: px + 22 };   // +22 px for the name label
+}
+const hitsCircle = (x, y, tw, th, c) => {
+  const nx = Math.max(x, Math.min(c.x, x + tw)), ny = Math.max(y, Math.min(c.y, y + th));
+  return Math.hypot(c.x - nx, c.y - ny) < c.r;
+};
+let tipOffset = null;   // card position relative to the asteroid; kept while it stays good, so the card doesn't jitter
+
+function placeTip() {
+  if (!hovered) return;
+  const v = hovered.mesh.getWorldPosition(new THREE.Vector3()).project(camera);
+  const w = space.clientWidth, h = space.clientHeight;
+  const ax = (v.x * 0.5 + 0.5) * w, ay = (-v.y * 0.5 + 0.5) * h;
+  const tw = tip.offsetWidth, th = tip.offsetHeight, pad = 8, gap = 16, step = 12;
+  const bodies = [screenCircle(earth, EARTH_R * 1.1, w, h), screenCircle(moon, 0.55, w, h)];
+
+  // How far the card's nearest edge is from the asteroid, and how much it covers Earth/Moon.
+  const distTo = (x, y) => Math.hypot(ax - Math.max(x, Math.min(ax, x + tw)), ay - Math.max(y, Math.min(ay, y + th)));
+  const cover = (x, y) => bodies.reduce((sum, c) => {
+    const nx = Math.max(x, Math.min(c.x, x + tw)), ny = Math.max(y, Math.min(c.y, y + th));
+    return sum + Math.max(0, c.r - Math.hypot(c.x - nx, c.y - ny));
+  }, 0);
+  // Lower is better: never cover Earth/Moon if avoidable, then be as close to the asteroid as possible.
+  const score = ([dx, dy]) => {
+    const x = ax + dx, y = ay + dy;
+    if (x < pad || y < pad || x + tw > w - pad || y + th > h - pad) return Infinity;
+    const d = distTo(x, y);
+    if (d < gap) return Infinity;                     // don't sit on the asteroid itself
+    return cover(x, y) * 1000 + d;
+  };
+
+  let best = null, bestScore = Infinity;
+  // Offsets on a fixed 12 px grid around the asteroid, limited to spots that keep the card inside the scene.
+  const x0 = Math.ceil((pad - ax) / step) * step, x1 = w - tw - pad - ax;
+  const y0 = Math.ceil((pad - ay) / step) * step, y1 = h - th - pad - ay;
+  for (let dx = x0; dx <= x1; dx += step) {
+    for (let dy = y0; dy <= y1; dy += step) {
+      const sc = score([dx, dy]);
+      if (sc < bestScore) { bestScore = sc; best = [dx, dy]; }
+    }
+  }
+  // Stay where we are unless the new spot is clearly better (avoids flicker as things move).
+  if (tipOffset && score(tipOffset) <= bestScore + 24) best = tipOffset;
+  if (!best) return;
+  tipOffset = best;
+  tip.style.transform = `translate(${Math.round(ax + best[0])}px, ${Math.round(ay + best[1])}px)`;
+}
+
+// Screen-space picking: the nearest asteroid within a comfortable radius of the pointer,
+// so tiny rocks are just as easy to hover as big ones.
+const _v = new THREE.Vector3();
+function pick(clientX, clientY, radius) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  let best = null, bestD = radius;
+  for (const r of rocks) {
+    r.mesh.getWorldPosition(_v).project(camera);
+    if (_v.z > 1) continue;
+    const d = Math.hypot((_v.x * 0.5 + 0.5) * rect.width + rect.left - clientX, (-_v.y * 0.5 + 0.5) * rect.height + rect.top - clientY);
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  return best;
+}
+
+let down = null;
+renderer.domElement.addEventListener("pointermove", (e) => {
+  if (e.pointerType === "mouse" && !pinned) setHover(pick(e.clientX, e.clientY, 20));
+});
+renderer.domElement.addEventListener("pointerleave", () => { if (!pinned) setHover(null); });
+renderer.domElement.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;   // it was a drag
+  const hit = pick(e.clientX, e.clientY, e.pointerType === "mouse" ? 20 : 32);
+  pinned = hit; setHover(hit);                    // tap/click pins the info; tap empty space to clear
+});
+
+// Live clock: every position in the scene is computed for this moment.
+const clockEl = document.getElementById("clock");
+const clockFmt = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" });
+function tick() { clockEl.textContent = clockFmt.format(new Date()) + " UTC"; }
+tick(); setInterval(tick, 1000);
+
+function resize() {
+  const w = space.clientWidth, h = space.clientHeight;
+  renderer.setSize(w, h); labels.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(space);
+resize();
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta();
+  const simTime = Date.now();
+  moonPivot.rotation.y = (simTime / 86_400_000 / 27.3) * Math.PI * 2;
+  earth.rotation.y = (simTime / 86_400_000) * Math.PI * 2;
+  for (const r of rocks) {
+    const F = anomalyAt(r, simTime);
+    const p = posAt(r, F);
+    splitPath(r, F);
+    r.mesh.position.copy(p);
+    if (!reduceMotion) r.mesh.rotation.y += dt * r.spin;
+    if (r.halo) { r.halo.position.copy(p); r.halo.lookAt(camera.position); }
+  }
+  controls.autoRotate = autoSpin && !hovered;   // hold still while someone is reading a card
+  controls.update();
+  renderer.render(scene, camera);
+  labels.render(scene, camera);
+  placeTip();
+});
+
+function reactButtons(id) {
+  return EMOJI.map((e) =>
+    `<button class="react" data-id="${id}" data-emoji="${e}" aria-label="React ${e}">${e} <span>${reactions[id]?.[e] ?? 0}</span></button>`
+  ).join("");
+}
+
+function drawPasses(list) {
+  const el = document.getElementById("passes");
+  if (!list.length) { el.innerHTML = `<p class="empty">No approaches loaded yet. The next NASA check runs within the hour.</p>`; return; }
+  el.innerHTML = list.map((a) => `
+    <article class="pass ${a.status}" id="p-${a.id}">
+      <h3>${esc(a.name)}</h3>
+      <p class="facts">Closest at <b>${esc(a.approach_at)} UTC</b>, <b>${a.miss_ld.toFixed(2)}</b> lunar distances away,
+        about <b>${size(a)}</b> across, moving <b>${a.velocity_kps.toFixed(1)} km/s</b>.</p>
+      ${a.needs_context >= 0.5 ? `<p class="context">This one passes safely. "Potentially hazardous" is NASA's label for a type of orbit, not a warning about this pass.</p>` : ""}
+      ${a.tier ? `<p class="why">Jev rated this pass ${esc(a.tier)} with ${Math.round(a.tier_confidence * 100)}% confidence.</p>` : ""}
+      <div class="actions">
+        ${reactButtons(a.id)}
+        ${a.jpl_url ? `<a href="${esc(a.jpl_url)}" target="_blank" rel="noopener">JPL orbit data</a>` : ""}
+      </div>
+    </article>`).join("");
+}
+
+async function load() {
+  const res = await fetch("/api/asteroids");
+  const list = await res.json();
+  document.getElementById("live-count").textContent = list.length;
+  drawSpace(list); drawPasses(list);
+}
+// Re-check every 5 minutes so passes that drop out of the window (or new closer ones) update on their own.
+setInterval(() => load().catch(() => {}), 5 * 60_000);
+
+document.addEventListener("click", (e) => {
+  const r = e.target.closest("button.react");
+  if (r && ws?.readyState === 1) ws.send(JSON.stringify({ type: "react", id: r.dataset.id, emoji: r.dataset.emoji }));
+});
+
+// Hovering a card in the list lights up that asteroid in the 3D view.
+document.getElementById("passes").addEventListener("mouseover", (e) => {
+  const card = e.target.closest(".pass");
+  if (card && !pinned) setHover(byId.get(card.id.slice(2)) ?? null);
+});
+document.getElementById("passes").addEventListener("mouseleave", () => { if (!pinned) setHover(null); });
+
+function connect() {
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/room/global`);
+  ws.onopen = () => { retry = 0; };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === "hello") { Object.assign(reactions, m.reactions); load(); }
+    if (m.type === "presence") document.getElementById("viewers").textContent = m.viewers;
+    if (m.type === "refresh") load();
+    if (m.type === "react") {
+      (reactions[m.id] ??= {})[m.emoji] = m.count;
+      const b = document.querySelector(`button.react[data-id="${m.id}"][data-emoji="${m.emoji}"]`);
+      if (b) { b.querySelector("span").textContent = m.count; b.classList.add("bump"); setTimeout(() => b.classList.remove("bump"), 600); }
+    }
+  };
+  ws.onclose = () => setTimeout(connect, Math.min(1000 * 2 ** retry++, 15000));
+}
+
+load().catch(() => {});
+connect();
+</script>
+</body>
+</html>

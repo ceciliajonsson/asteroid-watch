@@ -1,0 +1,46 @@
+{
+	"name": "asteroid-watch",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-01",
+	// Static front end (public/index.html). Anything that isn't a file falls through to the Worker.
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+	// Pull fresh NeoWs data every hour (and ask Jev about new objects when USE_JEV is "true").
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		]
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "WATCH_ROOM",
+				"class_name": "WatchRoom"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"WatchRoom"
+			]
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "asteroids",
+			"database_id": "de2f5a9b-68e2-40d9-b5ab-1bdc2207713b"
+		}
+	],
+	"vars": {
+		// Jev decisions below this confidence go to the human review queue instead of auto-featuring.
+		"AUTO_FEATURE_CONFIDENCE": "0.8",
+		// "true" asks Jev to rate each new asteroid. "false" lists every asteroid without a rating.
+		"USE_JEV": "false"
+	}
+	// Secrets (set with `wrangler secret put`): NASA_API_KEY, TYPESAFE_API_KEY, ADMIN_TOKEN
+}

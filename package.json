@@ -1,0 +1,16 @@
+{
+  "name": "asteroid-watch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute asteroids --remote --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute asteroids --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260922.1",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.136.2"
+  }
+}
