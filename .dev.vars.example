@@ -1,0 +1,4 @@
+# Copy this file to .dev.vars and fill in your own values. .dev.vars is git-ignored.
+NASA_API_KEY=your-nasa-api-key            # free at https://api.nasa.gov
+TYPESAFE_API_KEY=your-typesafe-key        # only needed when USE_JEV is "true" in wrangler.jsonc
+ADMIN_TOKEN=pick-a-long-random-string     # e.g. the output of: openssl rand -hex 32
